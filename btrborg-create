@@ -1,0 +1,122 @@
+#!/bin/sh
+# vim: ft=sh noet ts=8 sw=8
+set -eu
+scriptname="$(basename "$0")"
+
+# BORG_REPO and BORG_PASSPHRASE should be set here.
+profile=/etc/btrborg/profile
+
+# If these files exist, they'll be sourced as shell scripts before and after
+# the backup, respectively.
+pre_hook=/etc/btrborg/pre
+post_hook=/etc/btrborg/post
+
+# (optional) List of filesystems to bind-mount into the btrfs snapshot for
+# backup creation. If /boot isn't on your root filesystem, you'll want to add
+# it to this file.
+bindmount=/etc/btrborg/bindmount
+
+exclude_from=/etc/btrborg/exclude
+snapshot=/.btrborg-snapshot
+
+borg_progress=
+
+if [ -t 1 ]; then
+	borg_progress=--progress
+	info_format="\e[1;32m%s:\e[0m %s"
+	warn_format="\e[1;33m%s:\e[0m %s"
+else
+	info_format="%s: %s"
+	warn_format="$info_format"
+fi
+
+info() {
+	printf "$info_format\n" "$scriptname" "$*"
+}
+
+warn() {
+	printf "$warn_format\n" "$scriptname" "$*"
+}
+
+bindmounts() {
+	if [ ! -f "$bindmount" ]; then
+		return
+	fi
+
+	egrep -v '^($|#)' "$bindmount"
+}
+
+cleanup() {
+	if [ ! -d "$snapshot" ]; then
+		return
+	fi
+
+	local snapshot_mount
+	bindmounts | while read -r mount; do
+		if mountpoint --quiet "$snapshot$mount"; then
+			umount "$snapshot$mount"
+		fi
+	done
+
+	btrfs subvolume delete "$snapshot" >/dev/null
+}
+trap cleanup EXIT
+
+if [ "$(id -u)" -ne 0 ]; then
+	>&2 echo "$scriptname: must be run as root"
+	exit 1
+fi
+
+if [ ! -f "$exclude_from" ]; then
+	>&2 echo "$scriptname: exclude_from ($exclude_from) doesn't exist"
+	exit 1
+fi
+
+renice 19 $$ >/dev/null
+ionice -c Idle -p $$
+
+. "$profile"
+
+if [ -f "$pre_hook" ]; then
+	. "$pre_hook"
+fi
+
+if [ -d "$snapshot" ]; then
+	warn "Snapshot seems to exist already, trying to delete it..."
+	cleanup
+fi
+
+info "Creating a snapshot of /..."
+btrfs subvolume snapshot -r / "$snapshot" >/dev/null
+
+bindmounts | while read -r mount; do
+	info "Bind-mounting $mount to snapshot..."
+	mount --bind "$mount" "$snapshot$mount"
+done
+
+info "Creating a borg archive..."
+(
+cd "$snapshot"
+
+BORG_REPO="$BORG_REPO"			\
+BORG_PASSPHRASE="$BORG_PASSPHRASE"	\
+borg create				\
+	$borg_progress			\
+	--stats				\
+	--compression auto,lzma,6	\
+	--exclude-caches		\
+	--exclude-from "$exclude_from"	\
+	::'{hostname}-{now}' *
+)
+
+info "Cleaning up..."
+cleanup
+
+info "Pruning old backups..."
+BORG_REPO="$BORG_REPO"			\
+BORG_PASSPHRASE="$BORG_PASSPHRASE"	\
+borg prune --keep-daily 7 --keep-weekly 4
+
+if [ -f "$post_hook" ]; then
+  . "$post_hook"
+fi

@@ -1,0 +1,9 @@
+home/*/.cache/*
+root/.cache/*
+root/borg/*
+run/*
+tmp/*
+var/cache/*
+var/lock/*
+var/run/*
+var/tmp/*
