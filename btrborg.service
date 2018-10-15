@@ -1,0 +1,7 @@
+# vim: ft=dosini
+[Unit]
+Description=A backup tool for Linux systems with a single btrfs root
+
+[Service]
+Type=oneshot
+Exec=/usr/bin/btrborg-create

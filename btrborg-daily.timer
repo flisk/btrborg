@@ -1,0 +1,11 @@
+# vim: ft=dosini
+[Unit]
+Description=Daily invocation for btrborg.service
+
+[Timer]
+OnCalendar=00:00
+Persistent=true
+Unit=btrborg.service
+
+[Install]
+WantedBy=multi-user.target
