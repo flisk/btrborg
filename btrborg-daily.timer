@@ -1,6 +1,6 @@
 # vim: ft=dosini
 [Unit]
-Description=Daily invocation for btrborg.service
+Description=Run btrborg daily
 
 [Timer]
 OnCalendar=00:00
