@@ -3,7 +3,7 @@
 Description=Run btrborg daily
 
 [Timer]
-OnCalendar=00:00
+OnCalendar=%i
 Persistent=true
 Unit=btrborg.service
 
