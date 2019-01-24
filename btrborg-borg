@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 . /etc/btrborg/profile
 export BORG_REPO BORG_PASSPHRASE
 exec borg "$@"

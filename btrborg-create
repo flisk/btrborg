@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # vim: ft=sh noet ts=8 sw=8
 set -eu
 scriptname="$(basename "$0")"
@@ -10,11 +10,6 @@ profile=/etc/btrborg/profile
 # the backup, respectively.
 pre_hook=/etc/btrborg/pre
 post_hook=/etc/btrborg/post
-
-# (optional) List of filesystems to bind-mount into the btrfs snapshot for
-# backup creation. If /boot isn't on your root filesystem, you'll want to add
-# it to this file.
-bindmount=/etc/btrborg/bindmount
 
 exclude_from=/etc/btrborg/exclude
 snapshot=/.btrborg-snapshot
@@ -38,27 +33,10 @@ warn() {
 	printf "$warn_format\n" "$scriptname" "$*"
 }
 
-bindmounts() {
-	if [ ! -f "$bindmount" ]; then
-		return
-	fi
-
-	egrep -v '^($|#)' "$bindmount"
-}
-
 cleanup() {
-	if [ ! -d "$snapshot" ]; then
-		return
+	if [ -d "$snapshot" ]; then
+		btrfs subvolume delete "$snapshot" >/dev/null
 	fi
-
-	local snapshot_mount
-	bindmounts | while read -r mount; do
-		if mountpoint --quiet "$snapshot$mount"; then
-			umount "$snapshot$mount"
-		fi
-	done
-
-	btrfs subvolume delete "$snapshot" >/dev/null
 }
 trap cleanup EXIT
 
@@ -75,6 +53,7 @@ fi
 renice 19 $$ >/dev/null
 ionice -c Idle -p $$
 
+other_source_paths=()
 . "$profile"
 
 if [ -f "$pre_hook" ]; then
@@ -89,11 +68,6 @@ fi
 info "Creating a snapshot of /..."
 btrfs subvolume snapshot -r / "$snapshot" >/dev/null
 
-bindmounts | while read -r mount; do
-	info "Bind-mounting $mount to snapshot..."
-	mount --bind "$mount" "$snapshot$mount"
-done
-
 info "Creating a borg archive..."
 (
 cd "$snapshot"
@@ -106,7 +80,8 @@ borg create				\
 	--compression auto,lzma,6	\
 	--exclude-caches		\
 	--exclude-from "$exclude_from"	\
-	::'{hostname}-{now}' *
+	::'{hostname}-{now}'		\
+	. "${other_source_paths[@]}"
 )
 
 info "Cleaning up..."
