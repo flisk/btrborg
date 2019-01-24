@@ -15,22 +15,15 @@ exclude_from=/etc/btrborg/exclude
 snapshot=/.btrborg-snapshot
 
 borg_progress=
+msg_format="%s: %s"
 
 if [ -t 1 ]; then
 	borg_progress=--progress
-	info_format="\e[1;32m%s:\e[0m %s"
-	warn_format="\e[1;33m%s:\e[0m %s"
-else
-	info_format="%s: %s"
-	warn_format="$info_format"
+	msg_format="\e[1m%s:\e[0m %s"
 fi
 
-info() {
-	printf "$info_format\n" "$scriptname" "$*"
-}
-
-warn() {
-	printf "$warn_format\n" "$scriptname" "$*"
+msg() {
+	printf "$msg_format\n" "$scriptname" "$*"
 }
 
 cleanup() {
@@ -38,15 +31,16 @@ cleanup() {
 		btrfs subvolume delete "$snapshot" >/dev/null
 	fi
 }
+
 trap cleanup EXIT
 
 if [ "$(id -u)" -ne 0 ]; then
-	>&2 echo "$scriptname: must be run as root"
+	>&2 msg "must be run as root"
 	exit 1
 fi
 
 if [ ! -f "$exclude_from" ]; then
-	>&2 echo "$scriptname: exclude_from ($exclude_from) doesn't exist"
+	>&2 msg "exclude_from ($exclude_from) doesn't exist"
 	exit 1
 fi
 
@@ -61,14 +55,14 @@ if [ -f "$pre_hook" ]; then
 fi
 
 if [ -d "$snapshot" ]; then
-	warn "Snapshot seems to exist already, trying to delete it..."
+	>&2 msg "Snapshot ($snapshot) seems to exist, trying to delete..."
 	cleanup
 fi
 
-info "Creating a snapshot of /..."
+msg "Creating a snapshot of /..."
 btrfs subvolume snapshot -r / "$snapshot" >/dev/null
 
-info "Creating a borg archive..."
+msg "Creating a borg archive..."
 (
 cd "$snapshot"
 
@@ -84,10 +78,10 @@ borg create				\
 	. "${other_source_paths[@]}"
 )
 
-info "Cleaning up..."
+msg "Cleaning up..."
 cleanup
 
-info "Pruning old backups..."
+msg "Pruning old backups..."
 BORG_REPO="$BORG_REPO"			\
 BORG_PASSPHRASE="$BORG_PASSPHRASE"	\
 borg prune --keep-daily 7 --keep-weekly 4
