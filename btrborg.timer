@@ -1,0 +1,10 @@
+# vim: ft=systemd
+[Unit]
+Description=daily btrborg backup timer
+
+[Timer]
+OnCalendar=*-*-* 03:00
+Persistent=true
+
+[Install]
+WantedBy=multi-user.target

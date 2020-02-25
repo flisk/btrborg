@@ -1,6 +1,6 @@
-# vim: ft=dosini
+# vim: ft=systemd
 [Unit]
-Description=A backup tool for Linux systems with a single btrfs root
+Description=btrborg backup
 
 [Service]
 Type=oneshot
