@@ -3,8 +3,8 @@
 Description=daily btrborg backup timer
 
 [Timer]
-OnCalendar=*-*-* 03:00
+OnCalendar=03:00
 Persistent=true
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=timers.target
