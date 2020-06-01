@@ -1,5 +1,5 @@
-home/*/.cache
-root/.cache
-tmp
-var/cache
-var/tmp
+home/*/.cache/*
+root/.cache/*
+tmp/*
+var/cache/*
+var/tmp/*
