@@ -109,7 +109,7 @@ cleanup
 msg "Pruning old backups..."
 BORG_REPO="$BORG_REPO"             \
 BORG_PASSPHRASE="$BORG_PASSPHRASE" \
-         borg prune --keep-daily 7 --keep-weekly 4
+         borg prune --keep-daily 7 --keep-weekly 4 --stats --prefix '{hostname}-'
 
 if [[ -f "$post_hook" ]]; then
   . "$post_hook"
