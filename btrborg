@@ -1,0 +1,155 @@
+#!/usr/bin/env bash
+#
+# btrborg
+#
+set -euo pipefail
+
+scriptname="$(basename "$0")"
+
+borg="${borg:-borg}"
+
+btrborg_profile="${btrborg_profile:-/etc/btrborg/profile}"
+btrborg_exclude="${btrborg_exclude:-/etc/btrborg/exclude}"
+btrborg_snapshot_dir=".btrborg-snapshot"
+
+if [[ -t 1 ]]; then
+  msg_format="\e[1m%s:\e[0m %s"
+else
+  msg_format="%s: %s"
+fi
+
+msg() {
+  # shellcheck disable=SC2059
+  printf "$msg_format\n" "$scriptname" "$*"
+}
+
+fail() {
+  >&2 msg "$*"
+  exit 1
+}
+
+fail_with_usage() {
+  >&2 msg "$*"
+  echo "usage: $scriptname [borg | create] ..."
+  echo "  create -- create a new btrborg archive"
+  echo "  borg   -- run arbitrary borg commands with btrborg env vars applied"
+  exit 1
+}
+
+export_or_fail() {
+  local var_name="$1"
+  shift
+
+  if [[ ! -v "$var_name" ]]; then
+    fail "required variable missing: $var_name (see $btrborg_profile)"
+  fi
+
+  export "${var_name?}"
+}
+
+cmd_borg() {
+  # shellcheck disable=SC1090
+  . "$btrborg_profile"
+
+  export_or_fail BORG_REPO
+  export_or_fail BORG_PASSPHRASE
+
+  exec "$borg" "$@"
+}
+
+cmd_create() {
+  local borg_extra_args=()
+
+  if [[ -t 1 ]]; then
+    borg_extra_args+=(--progress)
+  fi
+
+  trap cmd_create_cleanup EXIT
+
+  renice 19 $$ >/dev/null
+  ionice -c Idle -p $$
+
+  other_source_paths=()
+  other_btrfs_roots=()
+
+  # shellcheck disable=SC1090
+  . "$btrborg_profile"
+
+  if [[ -d "/$btrborg_snapshot_dir" ]]; then
+    >&2 msg "/$btrborg_snapshot_dir exists, trying to delete..."
+    cmd_create_cleanup
+  fi
+
+  msg "Creating root snapshot..."
+  btrfs subvolume snapshot -r / "/$btrborg_snapshot_dir" >/dev/null
+
+  for other_root in "${other_btrfs_roots[@]}"; do
+    msg "$other_root: creating snapshot..."
+    btrfs subvolume snapshot -r \
+      "$other_root" \
+      "$other_root/$btrborg_snapshot_dir" \
+      >/dev/null
+
+    msg "$other_root: bind-mounting snapshot into root snapshot..."
+    mount --bind \
+      "$other_root/$btrborg_snapshot_dir" \
+      "/$btrborg_snapshot_dir/$other_root"
+  done
+
+  (
+    cd "/$btrborg_snapshot_dir"
+
+    export_or_fail BORG_REPO
+    export_or_fail BORG_PASSPHRASE
+
+    msg "Creating borg archive..."
+    "$borg" create \
+      --stats \
+      --compression auto,lzma,6 \
+      --exclude-caches \
+      --exclude-from "$btrborg_exclude" \
+      "${borg_extra_args[@]}" \
+      ::'{hostname}-{now}' \
+      . \
+      "${other_source_paths[@]}"
+    
+    msg "Cleaning up..."
+    cd
+    cmd_create_cleanup
+
+    msg "Pruning old borg archives..."
+    borg prune --keep-daily 7 --keep-weekly 4 --stats --prefix '{hostname}-'
+  )
+}
+
+cmd_create_cleanup() {
+  for root in "/${other_btrfs_roots[@]}" ""
+  do
+    d="/$btrborg_snapshot_dir$root"
+    if mountpoint -q "$d"; then
+      umount "$d"
+    fi
+
+    d="$root/$btrborg_snapshot_dir"
+    if [[ -d "$d" ]]; then
+      btrfs subvolume delete "$d" >/dev/null
+    fi
+  done
+}
+
+if [[ "$(id -u)" != 0 ]]; then
+  fail "must be run as root"
+fi
+
+if [[ $# == 0 ]]; then
+  fail_with_usage "missing command"
+fi
+
+cmd="$1"
+shift
+
+case "$cmd" in
+  borg) cmd_borg "$@" ;;
+  create) cmd_create "$@" ;;
+  *) fail_with_usage "unknown command: $cmd"
+esac

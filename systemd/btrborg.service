@@ -4,4 +4,4 @@ Description=btrborg backup
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/btrborg-create
+ExecStart=/usr/bin/btrborg create
