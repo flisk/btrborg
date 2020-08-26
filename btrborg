@@ -6,8 +6,6 @@ set -euo pipefail
 
 scriptname="$(basename "$0")"
 
-borg="${borg:-borg}"
-
 btrborg_profile="${btrborg_profile:-/etc/btrborg/profile}"
 btrborg_exclude="${btrborg_exclude:-/etc/btrborg/exclude}"
 btrborg_snapshot_dir=".btrborg-snapshot"
@@ -54,7 +52,7 @@ cmd_borg() {
   export_or_fail BORG_REPO
   export_or_fail BORG_PASSPHRASE
 
-  exec "$borg" "$@"
+  exec borg "$@"
 }
 
 cmd_create() {
@@ -103,7 +101,7 @@ cmd_create() {
     export_or_fail BORG_PASSPHRASE
 
     msg "Creating borg archive..."
-    "$borg" create \
+    borg create \
       --stats \
       --compression auto,lzma,6 \
       --exclude-caches \
