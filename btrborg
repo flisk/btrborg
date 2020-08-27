@@ -112,7 +112,7 @@ cmd_create() {
       "${other_source_paths[@]}"
     
     msg "Cleaning up..."
-    cd
+    cd /
     cmd_create_cleanup
 
     msg "Pruning old borg archives..."
