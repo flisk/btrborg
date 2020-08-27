@@ -121,18 +121,26 @@ cmd_create() {
 }
 
 cmd_create_cleanup() {
-  for root in "/${other_btrfs_roots[@]}" ""
-  do
-    d="/$btrborg_snapshot_dir$root"
-    if mountpoint -q "$d"; then
-      umount "$d"
-    fi
+  local d
 
-    d="$root/$btrborg_snapshot_dir"
+  for other_root in "${other_btrfs_roots[@]}"; do
+    d="$other_root/$btrborg_snapshot_dir"
     if [[ -d "$d" ]]; then
       btrfs subvolume delete "$d" >/dev/null
     fi
   done
+
+  d="/$btrborg_snapshot_dir"
+  if [[ -d "$d" ]]; then
+    btrfs subvolume delete "$d" >/dev/null
+  fi
+}
+
+unshare_exec() {
+  if [[ ! -v _btrborg_unshare_exec ]]; then
+    export _btrborg_unshare_exec=1
+    exec unshare --mount -- "$0" "$@"
+  fi
 }
 
 if [[ "$(id -u)" != 0 ]]; then
@@ -147,7 +155,15 @@ cmd="$1"
 shift
 
 case "$cmd" in
-  borg) cmd_borg "$@" ;;
-  create) cmd_create "$@" ;;
-  *) fail_with_usage "unknown command: $cmd"
+  borg)
+    cmd_borg "$@"
+    ;;
+
+  create)
+    unshare_exec "$cmd" "$@"
+    cmd_create "$@"
+    ;;
+
+  *)
+    fail_with_usage "unknown command: $cmd"
 esac
