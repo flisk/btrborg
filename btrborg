@@ -10,7 +10,7 @@ btrborg_profile="${btrborg_profile:-/etc/btrborg/profile}"
 btrborg_exclude="${btrborg_exclude:-/etc/btrborg/exclude}"
 btrborg_snapshot_dir=".btrborg-snapshot"
 
-if [[ -t 1 ]]; then
+if [[ -t 1 && ! -v NO_COLOR ]]; then
   msg_format="\e[1m%s:\e[0m %s"
 else
   msg_format="%s: %s"
