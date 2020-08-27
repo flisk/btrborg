@@ -24,7 +24,7 @@ let
   btrborgShim = pkgs.writeShellScriptBin "btrborg" ''
     export btrborg_profile=${profileShim}
     export btrborg_exclude=${excludeFrom}
-    exec ${pkg}/bin/btrborg
+    exec ${pkg}/bin/btrborg "$@"
   '';
 
 in {
