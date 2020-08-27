@@ -52,6 +52,14 @@ in {
         '';
       };
 
+      autoCPUQuota = mkOption {
+        type = types.str;
+        default = "";
+        description = ''
+          CPU quota for btrborg.service.
+        '';
+      };
+
       otherBtrfsRoots = mkOption {
         type = types.listOf types.path;
         default = [];
@@ -109,6 +117,7 @@ in {
       serviceConfig = {
         Type = "oneshot";
         ExecStart = "${btrborgShim}/bin/btrborg create";
+        CPUQuota = cfg.autoCPUQuota;
       };
     };
 
